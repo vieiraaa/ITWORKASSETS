@@ -1,0 +1,11 @@
+@tailwind base; @tailwind components; @tailwind utilities;
+body { @apply bg-slate-950 text-slate-100; } .card { @apply rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm; }
+.login-shell { @apply flex min-h-[calc(100vh-3rem)] items-center justify-center py-8; background: radial-gradient(circle at 20% 20%, rgba(14, 116, 144, .18), transparent 32%), radial-gradient(circle at 80% 80%, rgba(245, 158, 11, .12), transparent 28%); }
+.login-panel { @apply w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/90 p-8 shadow-2xl; }
+.login-brand { @apply flex items-center gap-4; } .brand-mark { @apply flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-400 text-xl font-bold text-slate-950; }
+.eyebrow { @apply text-xs font-semibold uppercase tracking-[.18em] text-cyan-300; } .login-panel h1 { @apply mt-2 text-2xl font-semibold tracking-tight; }
+.login-intro { @apply mt-6 text-sm leading-6 text-slate-400; } .login-form { @apply mt-8 grid gap-2; } .login-form label { @apply mt-3 text-sm font-medium text-slate-300; }
+.login-form input { @apply rounded-lg border border-slate-700 bg-slate-950 px-3 py-3 text-sm outline-none transition focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400; }
+.password-field { @apply relative; } .password-field input { @apply w-full pr-20; } .password-toggle { @apply absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-medium text-cyan-300 hover:text-cyan-200; }
+.login-form button { @apply mt-5 rounded-lg bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-wait disabled:opacity-60; }
+.login-error { @apply mt-3 rounded-lg border border-red-900/70 bg-red-950/40 px-3 py-2 text-sm text-red-300; } .login-footer { @apply mt-8 text-center text-xs text-slate-500; }

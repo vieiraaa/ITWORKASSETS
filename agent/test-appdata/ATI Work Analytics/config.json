@@ -1,0 +1,7 @@
+{
+  "api_url": "http://127.0.0.1:1/api/v1",
+  "collection_interval_seconds": 5,
+  "sync_interval_seconds": 60,
+  "idle_threshold_seconds": 60,
+  "data_directory": "C:\\Users\\joao.arruda\\Documents\\ChatGPT\\ATI WORK ASSETS\\agent\\test-appdata\\ATI Work Analytics\\data"
+}

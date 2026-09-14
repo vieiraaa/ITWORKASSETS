@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ati_work_analytics}
+      POSTGRES_USER: ${POSTGRES_USER:-ati}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ati-dev-password}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    command: ["postgres", "-p", "9002"]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB -p 9002]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://ati:ati-dev-password@postgres:9002/ati_work_analytics}
+    ports: ["9000:9000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+  frontend:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:9000/api/v1}
+    ports: ["9001:9001"]
+    depends_on: [backend]
+volumes:
+  postgres_data:

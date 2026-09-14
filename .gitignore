@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.py[cod]
+*.db
+agent/data/
+backend/test.db
+frontend/node_modules/
+frontend/.next/

@@ -1,0 +1,3 @@
+import './globals.css'; import Link from 'next/link'; import LogoutButton from './logout-button';
+export const metadata={title:'ATI Work Analytics'};
+export default function Layout({children}:{children:React.ReactNode}) { return <html lang="pt-BR"><body><main className="mx-auto max-w-6xl p-6"><header className="mb-8 flex items-center justify-between"><div><h1 className="text-xl font-semibold">ATI Work Analytics</h1><p className="text-sm text-slate-400">Indicadores objetivos de atividade</p></div><nav className="flex items-center gap-4 text-sm text-slate-300"><Link href="/">Visão geral</Link><Link href="/machines">Máquinas</Link><LogoutButton /></nav></header>{children}</main></body></html> }
