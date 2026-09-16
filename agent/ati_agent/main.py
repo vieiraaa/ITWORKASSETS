@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import requests
 from .storage import Storage
-from .windows import foreground, idle_seconds, identity
+from .windows import foreground, idle_seconds, identity, metrics
 def iso(): return datetime.now(timezone.utc).isoformat()
 class Agent:
     def __init__(self, config):
@@ -39,6 +39,7 @@ class Agent:
             if self.current: self.close_activity()
             if self.idle_start:
                 start=datetime.fromisoformat(self.idle_start); self.store.add_idle({'started_at':self.idle_start,'ended_at':now,'duration_seconds':max(1,int((datetime.now(timezone.utc)-start).total_seconds()))}); self.idle_start=now
+            self.store.add_metrics(metrics())
             self.sync()
     def sync(self):
         try:

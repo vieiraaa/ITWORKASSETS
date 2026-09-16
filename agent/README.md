@@ -1,86 +1,106 @@
-# ATI Work Analytics Agent
+# ATI Work Analytics — instalação do agente (piloto)
 
-The pilot agent is Windows-only. It observes only the foreground process name, its window title, and Windows idle duration. It does **not** collect keystrokes, text entered, clipboard content, screenshots, page content, or passwords.
+Este é o procedimento único para testar em um computador Windows. O agente roda invisivelmente na sessão do usuário conectado, o que permite medir idle e identificar aplicação/janela em primeiro plano. Ele não registra teclas, texto digitado, clipboard, screenshot ou conteúdo de sites.
 
-1. Install Python 3.12 on the test Windows machine.
-2. Run `pip install -r requirements.txt` in this folder.
-3. Copy `config.example.json` to `config.json` and set the API URL.
-4. Run `python -m ati_agent.main config.json`.
-5. Approve the pending machine with the API/dashboard. Restart the agent once to obtain its token.
+## Antes de começar
 
-The SQLite file is stored under the configured `data_directory`; pending rows remain there while the server is unavailable.
+- Na máquina de desenvolvimento, descubra o IP atual com `ipconfig`. Use o IPv4 da rede conectada, por exemplo `10.36.30.100`.
+- O computador piloto e a máquina de desenvolvimento precisam estar na mesma rede ou ter rota até ela.
+- A API precisa responder em `http://IP-DO-SERVIDOR:9000/health` a partir do computador piloto.
+- Não use `localhost` no piloto: ele aponta para o próprio piloto, não para a máquina de desenvolvimento.
+- Comece com uma máquina e uma conta com administrador local.
 
-## Gerar executável Windows
+## 1. Gerar o pacote
 
-Na máquina de desenvolvimento, dentro desta pasta, execute no PowerShell:
+Na máquina de desenvolvimento, instale Python **3.12 x64**, abra PowerShell na pasta `agent` e execute:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\build-exe.ps1
 ```
 
-O arquivo será criado em `dist\ATI-Agent.exe`. No computador monitorado, execute o `.exe`; na primeira execução ele solicitará a URL da API, registrará a máquina como `PENDING` e manterá o terminal aberto para coleta e sincronização. A aprovação continua sendo feita no dashboard.
+O resultado será `dist\ATI-Work-Analytics-Agent\`, contendo:
 
-## Implantação por GPO: agente interativo por usuário
+- `ATI-Agent-Interactive.exe`
+- `install-interactive-agent.ps1`
+- `uninstall-interactive-agent.ps1`
+- `README.md`
 
-Para a coleta de aplicação em primeiro plano, título de janela e idle, use `ATI-Agent-Interactive.exe` como uma Scheduled Task de **logon do usuário** via GPO. Ele é compilado sem console, executa no contexto do usuário e não exibe janela. Antes, distribua o executável e a configuração executando `install-interactive-agent.ps1 -ApiUrl 'http://SERVIDOR:9000/api/v1'` como script de inicialização da máquina.
+Se o executável não existir, pare: o pacote não está pronto. O build imprime o SHA-256. Se o arquivo desaparecer após o build, solicite à TI/SecOps a análise ou allowlist do hash; não tente contornar antivírus/EDR.
 
-O GPO deve executar o agente a cada logon; assim, cada sessão interativa consegue enxergar somente sua própria área de trabalho. O `machine_uuid` no SQLite mantém a instalação reconhecível mesmo com alteração de IP.
+## 2. Testar a rede no computador piloto
 
-### Roteiro de instalação para piloto
-
-1. Na máquina de desenvolvimento, gere os executáveis:
-
-   ```powershell
-   Set-ExecutionPolicy -Scope Process Bypass
-   .\build-exe.ps1
-   ```
-
-2. Copie estes dois arquivos da pasta `dist` para uma pasta compartilhada acessível aos computadores do domínio:
-
-   - `ATI-Agent-Interactive.exe`
-   - `install-interactive-agent.ps1`
-
-3. No computador piloto, abra o PowerShell como administrador e execute o instalador, trocando o nome/IP pelo servidor real:
-
-   ```powershell
-   Set-ExecutionPolicy -Scope Process Bypass
-   .\install-interactive-agent.ps1 -ApiUrl 'http://SERVIDOR-ATI:9000/api/v1'
-   ```
-
-   O instalador cria `C:\ProgramData\ATI Work Analytics\`, grava a configuração e a fila SQLite em `data`. Usuários comuns podem gravar somente nessa pasta de dados; não podem alterar o executável nem a URL da API.
-
-4. Crie uma tarefa agendada de teste com gatilho **At log on**, configurada para executar no contexto do usuário conectado:
-
-   ```text
-   C:\ProgramData\ATI Work Analytics\ATI-Agent-Interactive.exe
-   ```
-
-   Marque a tarefa como oculta e não use uma conta de serviço para ela. O agente precisa estar na sessão interativa do colaborador para observar janela em primeiro plano e idle.
-
-5. Faça logoff/logon no piloto. A máquina será registrada como `PENDING`. Aprove-a pela tela Máquinas. O agente tenta buscar o token novamente em até 60 segundos.
-
-6. Confirme no dashboard que há heartbeat, sessões de aplicações e períodos idle. Só depois replique para um grupo pequeno via GPO.
-
-### Configuração recomendada na GPO
-
-Use uma política de computador para copiar os dois arquivos e executar `install-interactive-agent.ps1` como script de inicialização, com `-ApiUrl` fixo. Em seguida, use **Computer Configuration → Preferences → Control Panel Settings → Scheduled Tasks** para criar uma tarefa de logon que execute o caminho acima. A tarefa deve iniciar somente quando o usuário estiver conectado e ser executada com as permissões do usuário conectado.
-
-Não use o serviço Windows para esta tarefa: serviços executam em uma sessão não interativa e não conseguem ler a janela ativa do colaborador.
-
-## Serviço Windows
-
-O build também cria `dist\ATI-Agent-Service.exe`. Copie esse arquivo e `install-service.ps1` para uma pasta no computador monitorado e abra o PowerShell **como administrador** nessa pasta:
+Antes de instalar, abra o PowerShell no piloto e substitua `10.36.30.100` pelo IP atual da máquina de desenvolvimento:
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\install-service.ps1
+Test-NetConnection 10.36.30.100 -Port 9000
+Invoke-RestMethod 'http://10.36.30.100:9000/health'
 ```
 
-Informe a URL da API quando solicitado. O serviço será instalado para iniciar automaticamente com o Windows, mesmo sem usuário logado. Aprove a máquina `PENDING` no dashboard. Para remover:
+O primeiro comando deve mostrar `TcpTestSucceeded : True` e o segundo deve retornar `status : ok`. Se falhar, corrija firewall, rota, Wi-Fi/cabo ou IP antes de continuar. Não use a porta `8000`: neste ambiente, a API é publicada na porta `9000` e o dashboard na `9001`.
+
+## 3. Instalar no computador piloto
+
+1. Copie a pasta inteira `ATI-Work-Analytics-Agent` para o piloto, por exemplo na Área de Trabalho.
+2. Abra PowerShell **como Administrador**.
+3. Entre na pasta copiada. Ajuste o caminho se o usuário ou local forem diferentes:
 
 ```powershell
-.\uninstall-service.ps1
+Set-Location 'C:\Users\SEU_USUARIO\Desktop\ATI-Work-Analytics-Agent'
 ```
 
-Um serviço do Windows não tem acesso à área de trabalho interativa. Por isso, ele não deve ser usado para a coleta de janelas, aplicações ou idle; mantenha-o somente como componente opcional de infraestrutura. A coleta detalhada é feita pelo agente interativo iniciado no logon.
+4. Execute usando o IP atual do servidor:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\install-interactive-agent.ps1 -ApiUrl 'http://10.36.30.100:9000/api/v1'
+```
+
+O instalador testa primeiro `http://10.36.30.100:9000/health`; se não houver resposta, não instala nada. Corrija rede, DNS, firewall ou URL e tente novamente.
+
+Ele cria:
+
+- executável e configuração em `C:\ProgramData\ATI Work Analytics\`;
+- SQLite e log em `C:\ProgramData\ATI Work Analytics\data\`;
+- um atalho comum de inicialização, que inicia o agente invisivelmente no próximo logon de qualquer usuário.
+- uma tarefa agendada que verifica o agente a cada minuto, ajudando a recuperá-lo após suspensão, retomada ou desbloqueio.
+
+## 4. Iniciar, aprovar e validar
+
+O instalador prepara o agente para o próximo logon, mas para validar imediatamente inicie-o uma vez:
+
+```powershell
+Start-Process 'C:\ProgramData\ATI Work Analytics\ATI-Agent-Interactive.exe' -WindowStyle Hidden
+```
+
+1. No computador de desenvolvimento, abra `http://10.36.30.100:9001`, entre no dashboard e acesse **Máquinas**.
+2. Aguarde a máquina aparecer como `PENDING` e clique em **Aprovar**.
+3. Aguarde até 60 segundos para o agente buscar o token e começar a enviar heartbeat.
+4. Confirme que o status mudou para `ONLINE` e use o computador por alguns minutos.
+5. Depois da validação, faça logoff/logon e suspenda/retome o piloto para confirmar que o atalho e o watchdog iniciam o agente automaticamente.
+
+Se o agente já estava instalado, reinstale usando este pacote atualizado para criar o watchdog. A instalação preserva a identidade e a fila local em `C:\ProgramData\ATI Work Analytics\data\`.
+
+Em caso de falha, execute no piloto:
+
+```powershell
+Get-Process ATI-Agent-Interactive -ErrorAction SilentlyContinue
+Get-Content 'C:\ProgramData\ATI Work Analytics\config.json'
+Get-Content 'C:\ProgramData\ATI Work Analytics\data\interactive-agent.log' -Tail 50
+```
+
+O `config.json` deve conter o IP atual em `api_url`. Se o IP do servidor mudar, repita os testes de rede e execute novamente o instalador com o novo IP.
+
+## Remover
+
+No PowerShell como administrador:
+
+```powershell
+.\uninstall-interactive-agent.ps1
+```
+
+Isso remove atalho, executável, configuração e fila SQLite local.
+
+## GPO — após o piloto
+
+Use uma GPO de computador para copiar o pacote de uma origem interna e executar `install-interactive-agent.ps1` como script de inicialização, com a `-ApiUrl` apontando para um DNS ou IP fixo do servidor. O atalho criado pelo instalador já inicia o agente no contexto interativo do usuário. Não use Windows Service para a coleta de janela/aplicação/idle.

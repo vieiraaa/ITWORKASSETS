@@ -1,1 +1,0 @@
-{"api_url":"http://localhost:9000/api/v1","collection_interval_seconds":5,"sync_interval_seconds":60,"idle_threshold_seconds":60,"data_directory":"./data"}

@@ -1,28 +1,33 @@
 import secrets
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
-from fastapi import FastAPI, Depends, HTTPException, Header
+from fastapi import FastAPI, Depends, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .config import settings
 from .database import Base, engine, get_db, SessionLocal
-from .models import User, UserPermission, Machine, ActivitySession, IdleSession, AuditLog
+from .models import User, UserPermission, Machine, ActivitySession, IdleSession, MetricSnapshot, AuditLog
 from .schemas import RegisterRequest, SyncRequest, LoginRequest, UserCreate, MachineUpdate
 from .security import hash_password, verify_password, create_token, require, current_user
 
 app = FastAPI(title="ATI Work Analytics API", version="0.1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://localhost:9001"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://localhost:9001"], allow_origin_regex=r"^https?://[^:]+:9001$", allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 def audit(db, action, actor_id=None, details=None): db.add(AuditLog(action=action, actor_id=actor_id, details=details))
 def bootstrap():
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
+        permissions = ["dashboard.view", "machines.view", "machines.details", "activity.view", "idle.view", "users.view", "users.manage", "settings.view", "settings.manage", "applications.view"]
         if not db.scalar(select(User).where(User.login == "admin")):
             admin = User(login="admin", name="Administrator", password_hash=hash_password(settings.bootstrap_admin_password))
-            admin.permissions = [UserPermission(permission=p) for p in ["dashboard.view", "machines.view", "machines.details", "activity.view", "idle.view", "users.view", "users.manage", "settings.view", "settings.manage", "applications.view"]]
+            admin.permissions = [UserPermission(permission=p) for p in permissions]
             db.add(admin); db.commit()
+        if not db.scalar(select(User).where(User.login == "usuario")):
+            user = User(login="usuario", name="Usuario ATI", password_hash=hash_password(settings.bootstrap_user_password))
+            user.permissions = [UserPermission(permission=p) for p in permissions]
+            db.add(user); db.commit()
 @app.on_event("startup")
 def startup(): bootstrap()
 @app.get("/health")
@@ -66,6 +71,9 @@ def sync(payload: SyncRequest, machine: Machine = Depends(agent_machine), db: Se
     for item in payload.idle_sessions:
         if not db.scalar(select(IdleSession.id).where(IdleSession.event_uuid == item.event_uuid)):
             db.add(IdleSession(machine_id=machine.id, **item.model_dump())); inserted += 1
+    for item in payload.metric_snapshots:
+        if not db.scalar(select(MetricSnapshot.id).where(MetricSnapshot.snapshot_uuid == item.snapshot_uuid)):
+            db.add(MetricSnapshot(machine_id=machine.id, **item.model_dump())); inserted += 1
     machine.last_heartbeat_at = datetime.now(timezone.utc); machine.status = "ONLINE"; db.commit()
     return {"accepted": inserted}
 
@@ -85,14 +93,26 @@ def machines(user: User = Depends(require("machines.view")), db: Session = Depen
         results.append({"id":m.id,"hostname":m.hostname,"user":m.current_user,"ip":m.current_ip,"status":effective,"last_heartbeat_at":m.last_heartbeat_at})
     return results
 @app.get("/api/v1/machines/{machine_id}/activity")
-def machine_activity(machine_id: str, user: User = Depends(require("activity.view")), db: Session = Depends(get_db)):
-    return db.scalars(select(ActivitySession).where(ActivitySession.machine_id == machine_id).order_by(ActivitySession.started_at.desc()).limit(200)).all()
+def machine_activity(machine_id: str, application: str | None = Query(default=None), hours: int = Query(default=24, ge=1, le=720), user: User = Depends(require("activity.view")), db: Session = Depends(get_db)):
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    query = select(ActivitySession).where(ActivitySession.machine_id == machine_id, ActivitySession.ended_at >= since)
+    if application: query = query.where(ActivitySession.application.ilike(f"%{application.strip()}%"))
+    return db.scalars(query.order_by(ActivitySession.started_at.desc()).limit(2000)).all()
+
+@app.get("/api/v1/machines/{machine_id}/telemetry")
+def machine_telemetry(machine_id: str, hours: int = Query(default=24, ge=1, le=168), user: User = Depends(require("machines.details")), db: Session = Depends(get_db)):
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    rows = db.scalars(select(MetricSnapshot).where(MetricSnapshot.machine_id == machine_id, MetricSnapshot.collected_at >= since).order_by(MetricSnapshot.collected_at.desc()).limit(1000)).all()
+    latest = rows[0] if rows else None
+    return {'latest': latest, 'history': list(reversed(rows))}
 @app.get("/api/v1/machines/{machine_id}/analytics")
-def machine_analytics(machine_id: str, user: User = Depends(require("activity.view")), db: Session = Depends(get_db)):
+def machine_analytics(machine_id: str, application: str | None = Query(default=None), hours: int = Query(default=24, ge=1, le=720), user: User = Depends(require("activity.view")), db: Session = Depends(get_db)):
     machine = db.get(Machine, machine_id)
     if not machine: raise HTTPException(404, "Machine not found")
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
-    sessions = db.scalars(select(ActivitySession).where(ActivitySession.machine_id == machine_id, ActivitySession.ended_at >= since)).all()
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    query = select(ActivitySession).where(ActivitySession.machine_id == machine_id, ActivitySession.ended_at >= since)
+    if application: query = query.where(ActivitySession.application.ilike(f"%{application.strip()}%"))
+    sessions = db.scalars(query).all()
     total = sum(item.duration_seconds for item in sessions)
     grouped = {}
     for item in sessions: grouped[item.application] = grouped.get(item.application, 0) + item.duration_seconds

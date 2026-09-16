@@ -14,8 +14,8 @@ V1 mínima para piloto controlado: agente Windows → SQLite local → FastAPI �
 
 1. Copie `.env.example` para `.env` e troque todos os segredos.
 2. Execute `docker compose up --build`.
-3. Acesse a tela de login em `http://localhost:9001/login`. A API estará em `http://localhost:9000` e o `/docs` é destinado somente à documentação técnica.
-4. O login inicial é `admin`; a senha vem de `BOOTSTRAP_ADMIN_PASSWORD`.
+3. Na própria máquina, acesse `http://localhost:9001/login`. A partir de outro computador da rede, use `http://IP-DO-SERVIDOR:9001/login`; por exemplo, `http://10.36.30.100:9001/login`. A API estará em `http://IP-DO-SERVIDOR:9000` e o `/docs` é destinado somente à documentação técnica.
+4. O login inicial é `admin`; a senha vem de `BOOTSTRAP_ADMIN_PASSWORD`. Também é criado o acesso `usuario` com a senha definida em `BOOTSTRAP_USER_PASSWORD` (neste piloto: `usu@rio@ti`).
 5. Consulte `agent/README.md` para o piloto Windows. Após o primeiro registro, aprove a máquina em `POST /api/v1/machines/{machine_id}/approve`, reinicie o agente e ele sincronizará.
 
 ## Escopo deliberadamente posterior

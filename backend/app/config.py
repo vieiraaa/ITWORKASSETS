@@ -4,6 +4,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./ati-dev.db"
     jwt_secret: str = "development-only-change-me"
     bootstrap_admin_password: str = "admin"
+    bootstrap_user_password: str = "usu@rio@ti"
     heartbeat_timeout_seconds: int = 300
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

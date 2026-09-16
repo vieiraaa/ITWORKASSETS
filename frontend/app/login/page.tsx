@@ -3,7 +3,9 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api/v1';
+const api = typeof window !== 'undefined'
+  ? `${window.location.protocol}//${window.location.hostname}:9000/api/v1`
+  : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000/api/v1';
 
 export default function LoginPage() {
   const router = useRouter();
