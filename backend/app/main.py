@@ -140,6 +140,7 @@ def delete_machine(machine_id: str, user: User = Depends(require("settings.manag
     hostname = machine.hostname
     db.query(ActivitySession).filter(ActivitySession.machine_id == machine_id).delete(synchronize_session=False)
     db.query(IdleSession).filter(IdleSession.machine_id == machine_id).delete(synchronize_session=False)
+    db.query(MetricSnapshot).filter(MetricSnapshot.machine_id == machine_id).delete(synchronize_session=False)
     db.delete(machine); audit(db, "machine.deleted", user.id, hostname); db.commit()
 @app.get("/api/v1/dashboard/overview")
 def overview(user: User = Depends(require("dashboard.view")), db: Session = Depends(get_db)):

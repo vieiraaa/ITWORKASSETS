@@ -26,12 +26,14 @@ New-Item -ItemType Directory -Force -Path $appDir, $dataDir | Out-Null
 # Standard users can write only the local SQLite queue and log. They cannot alter the executable or configuration.
 icacls $dataDir /grant '*S-1-5-32-545:(OI)(CI)M' /T | Out-Null
 @{ api_url = $apiUrl; collection_interval_seconds = 5; sync_interval_seconds = 60; idle_threshold_seconds = 60; data_directory = $dataDir } | ConvertTo-Json | Set-Content -Path (Join-Path $appDir 'config.json') -Encoding UTF8
+Get-Process -Name 'ATI-Agent-Interactive' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 500
 Copy-Item -LiteralPath $source -Destination $destination -Force
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $destination; $shortcut.WorkingDirectory = $appDir; $shortcut.WindowStyle = 7; $shortcut.Description = 'ATI Work Analytics — agente de atividade'; $shortcut.Save()
 $taskAction = "`"$destination`""
-schtasks.exe /Create /TN $taskName /TR $taskAction /SC MINUTE /MO 1 /IT /F | Out-Null
+schtasks.exe /Create /TN $taskName /TR $taskAction /SC MINUTE /MO 10 /IT /F | Out-Null
 Write-Host "Instalação concluída em $appDir"
-Write-Host 'O agente iniciará no próximo logon e será revalidado a cada minuto após suspensão ou desbloqueio.'
+Write-Host 'O agente iniciará no próximo logon e será revalidado a cada 10 minutos após suspensão ou desbloqueio.'
 Write-Host 'Agora aprove a máquina PENDING no dashboard e faça logoff/logon.'
